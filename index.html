@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+
+<body>
+  <div class="container">
+    <video class="input_video" style="display: none;"></video>
+    <canvas class="output_canvas" width="1280px" height="720px" style="width:95%;"></canvas>
+  </div>
+<script type="module">
+const videoElement = document.getElementsByClassName('input_video')[0];
+const canvasElement = document.getElementsByClassName('output_canvas')[0];
+const canvasCtx = canvasElement.getContext('2d');
+let isBlur = false
+
+function onResults(results) {
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(
+      results.image, 0, 0, canvasElement.width, canvasElement.height);
+    if (results.multiHandLandmarks) {
+      const landmarks = results.multiHandLandmarks
+      console.log(landmarks)
+      if (landmarks.length !== 0) {
+        const jari = {
+          telunjuk : landmarks[0][8].y < landmarks[0][6].y,
+          tengah : landmarks[0][12].y < landmarks[0][10].y,
+          manis : landmarks[0][16].y < landmarks[0][14].y,
+          kelingking : landmarks[0][20].y < landmarks[0][18].y,
+        }
+        console.log(
+          jari.telunjuk &&
+          jari.tengah &&
+          !jari.manis &&
+          !jari.kelingking
+        )
+        if (  jari.telunjuk && jari.tengah && !jari.manis && !jari.kelingking ) {
+          isBlur = true
+        } else {
+          isBlur = false
+        }
+      }
+      if (landmarks.length === 0) {
+        isBlur = false
+      }
+      for (const landmarks of results.multiHandLandmarks) {
+        drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, 
+                      {color: '#00FF00', lineWidth: 5});
+        drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 2});
+      }
+  }
+  canvasCtx.restore();
+}
+
+const hands = new Hands({locateFile: (file) => {
+  return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+}});
+hands.setOptions({
+  maxNumHands: 2,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+hands.onResults(onResults);
+
+const camera = new Camera(videoElement, {
+  onFrame: async () => {
+    
+    canvasCtx.filter = isBlur ? 'blur(20px)' : 'blur(0)'
+    await hands.send({image: videoElement});
+  },
+  width: 1280,
+  height: 720,
+});
+camera.start();
+</script>
+</body>
+</html>
